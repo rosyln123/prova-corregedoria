@@ -1,0 +1,649 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Shield, AlertTriangle, Clock, FileText, CheckCircle, XCircle, Lock, AlertOctagon, User, Hash, Phone, Mail, Circle, Disc } from 'lucide-react';
+
+export default function App() {
+  // Estados da Aplicação
+  const [view, setView] = useState('loading'); // loading, intro, exam, result
+  const [timeLeft, setTimeLeft] = useState(2700); // 45 minutos em segundos
+  const [infractions, setInfractions] = useState(0);
+  
+  // Estado para dados do Usuário
+  const [userData, setUserData] = useState({
+    gameName: '',
+    discord: '',
+    rd: '',
+    phone: ''
+  });
+
+  // Estado das Respostas (Inicialmente vazio)
+  // q1 a q13 (Múltipla Escolha), q14 e q15 (Dissertativas)
+  const [answers, setAnswers] = useState({
+    q1: '', q2: '', q3: '', q4: '', q5: '',
+    q6: '', q7: '', q8: '', q9: '', q10: '',
+    q11: '', q12: '', q13: '', q14: '', q15: ''
+  });
+  
+  const [examStatus, setExamStatus] = useState(null); // 'submitted', 'disqualified', 'timeout'
+  const [warningMsg, setWarningMsg] = useState('');
+
+  // Referência para verificar infrações
+  const infractionsRef = useRef(0);
+
+  // Constantes de Configuração
+  const EXAM_KEY = 'pmsp_correg_exam_v4_full';
+  const MAX_INFRACTIONS = 3;
+
+  // BANCO DE QUESTÕES (OBJETIVAS)
+  const questionsMC = [
+    {
+      id: 'q1',
+      text: 'No âmbito do Regulamento Disciplinar, a competência para aplicar punição disciplinar é inerente:',
+      options: [
+        'A) Apenas ao Governador do Estado.',
+        'B) Ao cargo, função ou posto, sendo vinculada à hierarquia funcional.',
+        'C) Exclusivamente aos oficiais da Corregedoria.',
+        'D) A qualquer policial militar com mais de 10 anos de serviço.'
+      ]
+    },
+    {
+      id: 'q2',
+      text: 'São consideradas circunstâncias AGRAVANTES na transgressão disciplinar, EXCETO:',
+      options: [
+        'A) Prática simultânea de duas ou mais transgressões.',
+        'B) Conluio de duas ou mais pessoas.',
+        'C) Ter sido a transgressão cometida para evitar mal maior.',
+        'D) Prática em presença de tropa ou público.'
+      ]
+    },
+    {
+      id: 'q3',
+      text: 'Qual o procedimento administrativo sumário utilizado para apurar autoria e materialidade de transgressões disciplinares de menor complexidade?',
+      options: [
+        'A) Inquérito Policial Militar (IPM).',
+        'B) Conselho de Justificação.',
+        'C) Sindicância ou Procedimento Disciplinar (PD).',
+        'D) Conselho de Disciplina.'
+      ]
+    },
+    {
+      id: 'q4',
+      text: 'Sobre o uso da força policial, é CORRETO afirmar:',
+      options: [
+        'A) Deve ser sempre o primeiro recurso para garantir a ordem.',
+        'B) O uso de arma de fogo é permitido contra qualquer pessoa em fuga desarmada.',
+        'C) Deve obedecer aos princípios da legalidade, necessidade, proporcionalidade e conveniência.',
+        'D) Não necessita de relatório posterior caso não haja óbito.'
+      ]
+    },
+    {
+      id: 'q5',
+      text: 'Conforme o Estatuto dos Policiais Militares, a hierarquia e a disciplina baseiam-se:',
+      options: [
+        'A) No medo e na punição severa.',
+        'B) Na autoridade absoluta do Comandante Geral sem questionamentos.',
+        'C) No respeito aos Direitos Humanos e na camaradagem.',
+        'D) Na regularidade dos quadros e na obediência às leis e regulamentos.'
+      ]
+    },
+    {
+      id: 'q6',
+      text: 'O Policial Militar que, em serviço, for surpreendido dormindo, comete transgressão:',
+      options: [
+        'A) Leve.',
+        'B) Média.',
+        'C) Grave.',
+        'D) Não é transgressão se for no horário de descanso previsto.'
+      ]
+    },
+    {
+      id: 'q7',
+      text: 'A quem compete a instauração de Inquérito Policial Militar (IPM)?',
+      options: [
+        'A) Apenas a autoridades de Polícia Judiciária Militar (Oficiais).',
+        'B) A qualquer Sargento ou Subtenente.',
+        'C) A delegados da Polícia Civil.',
+        'D) Ao Ministério Público Militar diretamente.'
+      ]
+    },
+    {
+      id: 'q8',
+      text: 'Em relação à conduta nas redes sociais, o policial militar:',
+      options: [
+        'A) Pode postar fotos de ocorrências livremente, desde que borre rostos.',
+        'B) Não pode utilizar o uniforme ou símbolos da corporação para fins político-partidários ou comerciais sem autorização.',
+        'C) Tem liberdade total de expressão, não se sujeitando ao regulamento disciplinar no ambiente virtual.',
+        'D) Só pode ter redes sociais privadas.'
+      ]
+    },
+    {
+      id: 'q9',
+      text: 'A "Verdade Sabida" como forma de apuração imediata:',
+      options: [
+        'A) Foi extinta e não é mais aceita como único fundamento para sanção disciplinar sem contraditório.',
+        'B) É a principal forma de punição na PMESP.',
+        'C) Permite punir o soldado sem ouvir sua defesa.',
+        'D) Aplica-se apenas em tempos de guerra.'
+      ]
+    },
+    {
+      id: 'q10',
+      text: 'A sanção de "Demissão" é aplicada:',
+      options: [
+        'A) Aos oficiais, exclusivamente.',
+        'B) Aos praças sem estabilidade (menos de 10 anos).',
+        'C) Aos praças com ou sem estabilidade, como forma de exclusão da corporação a bem da disciplina.',
+        'D) Apenas por decisão judicial transitada em julgado.'
+      ]
+    },
+    {
+      id: 'q11',
+      text: 'O desrespeito à cadeia de comando (pular hierarquia) para tratar de assuntos pessoais caracteriza:',
+      options: [
+        'A) Proatividade e iniciativa.',
+        'B) Transgressão disciplinar.',
+        'C) Crime militar de motim.',
+        'D) Direito de petição.'
+      ]
+    },
+    {
+      id: 'q12',
+      text: 'Sobre a apresentação pessoal (fardamento e higiene), o militar deve:',
+      options: [
+        'A) Seguir rigorosamente os regulamentos de uniformes, sendo o desleixo uma transgressão.',
+        'B) Ter liberdade para alterar o fardamento conforme o clima.',
+        'C) Usar barba grande se autorizado pelo Comandante de Cia.',
+        'D) Não se preocupar, pois o foco é o operacional.'
+      ]
+    },
+    {
+      id: 'q13',
+      text: 'Ao presenciar um crime militar cometido por um superior hierárquico, o subordinado deve:',
+      options: [
+        'A) Fingir que não viu para evitar represálias.',
+        'B) Tentar prender o superior imediatamente usando força letal.',
+        'C) Dar voz de prisão ao superior e comunicar imediatamente à autoridade competente, ou relatar o fato se não houver flagrante.',
+        'D) Aguardar o término do serviço para comentar com os colegas.'
+      ]
+    }
+  ];
+
+  // Efeito Inicial: Verifica se já fez a prova
+  useEffect(() => {
+    const savedData = localStorage.getItem(EXAM_KEY);
+    if (savedData) {
+      const parsed = JSON.parse(savedData);
+      setAnswers(parsed.answers);
+      setInfractions(parsed.infractions);
+      setExamStatus(parsed.status);
+      if (parsed.userData) setUserData(parsed.userData);
+      setView('result');
+    } else {
+      setView('intro');
+    }
+  }, []);
+
+  // Efeito do Timer
+  useEffect(() => {
+    if (view !== 'exam') return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleSubmit('timeout');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [view]);
+
+  // Efeito de Segurança (Anti-Cheat)
+  useEffect(() => {
+    if (view !== 'exam') return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        registerInfraction("Mudança de aba detectada");
+      }
+    };
+
+    const preventCopyPaste = (e) => {
+      e.preventDefault();
+      setWarningMsg("Ação Bloqueada: Copiar/Colar é proibido.");
+      setTimeout(() => setWarningMsg(''), 3000);
+    };
+
+    const preventContextMenu = (e) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('copy', preventCopyPaste);
+    document.addEventListener('paste', preventCopyPaste);
+    document.addEventListener('cut', preventCopyPaste);
+    document.addEventListener('contextmenu', preventContextMenu);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('copy', preventCopyPaste);
+      document.removeEventListener('paste', preventCopyPaste);
+      document.removeEventListener('cut', preventCopyPaste);
+      document.removeEventListener('contextmenu', preventContextMenu);
+    };
+  }, [view]);
+
+  const registerInfraction = (reason) => {
+    infractionsRef.current += 1;
+    setInfractions(infractionsRef.current);
+    setWarningMsg(`ALERTA DE SEGURANÇA: ${reason}. Infração ${infractionsRef.current}/${MAX_INFRACTIONS}`);
+    
+    if (infractionsRef.current >= MAX_INFRACTIONS) {
+      handleSubmit('disqualified');
+    }
+
+    setTimeout(() => setWarningMsg(''), 5000);
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const startExam = () => {
+    if (!userData.gameName || !userData.discord || !userData.rd || !userData.phone) {
+      alert("Por favor, preencha todos os campos de identificação antes de iniciar.");
+      return;
+    }
+    setView('exam');
+  };
+
+  const handleSubmit = (status = 'submitted') => {
+    setExamStatus(status);
+    
+    const resultData = {
+      answers,
+      userData,
+      infractions: infractionsRef.current,
+      status: status,
+      timestamp: new Date().toISOString()
+    };
+
+    localStorage.setItem(EXAM_KEY, JSON.stringify(resultData));
+    setView('result');
+    
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(err => console.log(err));
+    }
+  };
+
+  const handleMCChange = (questionId, option) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: option
+    }));
+  };
+
+  // --- Componentes de UI ---
+
+  const Header = () => (
+    <header className="bg-slate-900 text-white p-4 shadow-lg border-b-4 border-red-700 flex items-center justify-between sticky top-0 z-40">
+      <div className="flex items-center gap-3">
+        <Shield className="h-10 w-10 text-gray-300" />
+        <div>
+          <h1 className="text-xl font-bold uppercase tracking-wider">Corregedoria PMESP</h1>
+          <p className="text-xs text-gray-400">Sistema de Avaliação Interna - Sigilo Obrigatório</p>
+        </div>
+      </div>
+      {view === 'exam' && (
+        <div className={`flex items-center gap-2 text-xl font-mono font-bold px-4 py-2 rounded shadow-inner border border-opacity-20 border-white ${timeLeft < 300 ? 'bg-red-900 text-red-100 animate-pulse' : 'bg-slate-800'}`}>
+          <Clock className="h-5 w-5" />
+          {formatTime(timeLeft)}
+        </div>
+      )}
+    </header>
+  );
+
+  if (view === 'loading') return <div className="min-h-screen bg-gray-100 flex items-center justify-center font-bold text-slate-600 animate-pulse">Carregando sistema seguro...</div>;
+
+  return (
+    <div className="min-h-screen bg-gray-100 font-sans text-slate-800 select-none flex flex-col">
+      <Header />
+
+      {/* Alerta Flutuante de Segurança */}
+      {warningMsg && (
+        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-6 py-4 rounded-md shadow-2xl z-50 flex items-center gap-3 font-bold animate-bounce border-2 border-white">
+          <AlertOctagon className="h-8 w-8" />
+          <div className="flex flex-col">
+             <span>{warningMsg}</span>
+             <span className="text-xs font-normal opacity-80">Esta ação foi registrada no log do servidor.</span>
+          </div>
+        </div>
+      )}
+
+      <main className="flex-grow w-full max-w-5xl mx-auto p-6">
+        
+        {/* TELA 1: INTRODUÇÃO E CADASTRO */}
+        {view === 'intro' && (
+          <div className="bg-white rounded-lg shadow-xl overflow-hidden border border-slate-200 animate-fade-in-up">
+            <div className="bg-slate-200 p-6 border-b border-slate-300 flex justify-between items-center">
+              <h2 className="text-2xl font-bold flex items-center gap-2 text-slate-800">
+                <FileText className="text-slate-700" />
+                Identificação e Instruções
+              </h2>
+              <span className="bg-slate-800 text-white text-xs px-2 py-1 rounded uppercase font-bold tracking-widest">Confidencial</span>
+            </div>
+            
+            <div className="p-8 space-y-8">
+              
+              {/* Formulário de Identificação */}
+              <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 shadow-inner">
+                <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2 border-b border-slate-200 pb-2">
+                  <User className="h-5 w-5"/> Identificação do Candidato
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-600 mb-1">Nome no Game (Completo)</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                      <input 
+                        type="text" 
+                        value={userData.gameName}
+                        onChange={(e) => setUserData({...userData, gameName: e.target.value})}
+                        className="w-full pl-10 p-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                        placeholder="Ex: Fox Mulder"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-600 mb-1">Email / Discord (DC)</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                      <input 
+                        type="text" 
+                        value={userData.discord}
+                        onChange={(e) => setUserData({...userData, discord: e.target.value})}
+                        className="w-full pl-10 p-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                        placeholder="Ex: usuario#1234"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-600 mb-1">RD (Registro/ID)</label>
+                    <div className="relative">
+                      <Hash className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                      <input 
+                        type="text" 
+                        value={userData.rd}
+                        onChange={(e) => setUserData({...userData, rd: e.target.value})}
+                        className="w-full pl-10 p-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                        placeholder="Ex: 5529"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-600 mb-1">Telefone de Contato</label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                      <input 
+                        type="text" 
+                        value={userData.phone}
+                        onChange={(e) => setUserData({...userData, phone: e.target.value})}
+                        className="w-full pl-10 p-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                        placeholder="Ex: 555-0123"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 shadow-sm">
+                <h3 className="font-bold text-yellow-800 flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  PROTOCOLO DE SEGURANÇA ATIVO
+                </h3>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Este ambiente é monitorado. Qualquer tentativa de fraude será registrada e pode resultar em desclassificação imediata.
+                </p>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4 text-sm">
+                <div className="flex items-center gap-2 text-slate-600">
+                   <Clock className="h-4 w-4 text-blue-600"/> 45 minutos de prova.
+                </div>
+                <div className="flex items-center gap-2 text-slate-600">
+                   <AlertTriangle className="h-4 w-4 text-red-600"/> Proibido mudar de aba.
+                </div>
+                <div className="flex items-center gap-2 text-slate-600">
+                   <CheckCircle className="h-4 w-4 text-green-600"/> Tentativa Única.
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-slate-200 flex flex-col items-center gap-4">
+                <button 
+                  onClick={startExam}
+                  disabled={!userData.gameName || !userData.discord || !userData.rd || !userData.phone}
+                  className="disabled:bg-gray-400 disabled:cursor-not-allowed bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-12 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 active:scale-95 flex items-center gap-3 text-lg"
+                >
+                  INICIAR PROVA AGORA
+                </button>
+                {!userData.gameName && <p className="text-red-500 text-xs font-bold">Preencha seus dados acima para liberar a prova.</p>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TELA 2: PROVA */}
+        {view === 'exam' && (
+          <div className="space-y-8 animate-fade-in">
+             <div className="bg-slate-800 text-white p-2 rounded text-sm flex justify-between px-4 items-center sticky top-20 z-30 shadow-md">
+                <span>Candidato: <strong>{userData.gameName}</strong></span>
+                <div className="flex gap-4">
+                    <span>RD: <strong>{userData.rd}</strong></span>
+                    <span className="text-yellow-400">Questões: 15</span>
+                </div>
+             </div>
+
+            <div className="text-sm text-gray-500 font-bold uppercase tracking-widest border-b pb-2 mb-4">Parte 1: Questões Objetivas</div>
+
+            {/* Renderização das Questões de Múltipla Escolha */}
+            {questionsMC.map((q, index) => (
+              <div key={q.id} className="bg-white rounded-lg shadow-sm p-6 border border-slate-200 hover:border-slate-400 transition-colors">
+                <h3 className="text-md font-bold text-slate-800 mb-4 flex gap-2">
+                  <span className="bg-slate-100 px-2 rounded text-slate-600">#{index + 1}</span>
+                  {q.text}
+                </h3>
+                <div className="space-y-2">
+                  {q.options.map((opt, i) => (
+                    <label key={i} className={`flex items-center gap-3 p-3 rounded cursor-pointer border transition-all ${answers[q.id] === opt ? 'bg-blue-50 border-blue-500 text-blue-900' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${answers[q.id] === opt ? 'border-blue-600' : 'border-gray-400'}`}>
+                        {answers[q.id] === opt && <div className="w-3 h-3 bg-blue-600 rounded-full" />}
+                      </div>
+                      <input 
+                        type="radio" 
+                        name={q.id} 
+                        value={opt} 
+                        checked={answers[q.id] === opt}
+                        onChange={() => handleMCChange(q.id, opt)}
+                        className="hidden"
+                      />
+                      <span className="text-sm">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            <div className="text-sm text-gray-500 font-bold uppercase tracking-widest border-b pb-2 mb-4 mt-8">Parte 2: Questões Dissertativas</div>
+
+            {/* Questão 14 (Antiga Q1) */}
+            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-slate-600">
+              <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-lg font-bold text-slate-800">Questão 14 - Conselho de Disciplina</h3>
+                  <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-3 py-1 rounded-full border border-slate-200">Dissertativa</span>
+              </div>
+              <p className="mb-4 text-justify text-slate-700 leading-relaxed p-3 bg-slate-50 rounded border border-slate-100">
+                <strong>Enunciado:</strong> Descreva os procedimentos obrigatórios para a instauração de um Conselho de Disciplina, citando os prazos legais e as garantias constitucionais da ampla defesa e do contraditório aplicáveis ao Policial Militar acusado de transgressão grave.
+              </p>
+              <div className="relative">
+                <textarea 
+                    className="w-full h-40 p-4 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-200 focus:border-slate-500 transition-all resize-none bg-white text-slate-800"
+                    placeholder="Digite sua resposta aqui..."
+                    value={answers.q14}
+                    onChange={(e) => setAnswers({...answers, q14: e.target.value})}
+                    spellCheck={true}
+                />
+                <div className="absolute bottom-4 right-4 text-xs text-gray-400 bg-white px-2 py-1 rounded border shadow-sm">
+                    {answers.q14.length} chars
+                </div>
+              </div>
+            </div>
+
+            {/* Questão 15 (Antiga Q2) */}
+            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-slate-600">
+              <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-lg font-bold text-slate-800">Questão 15 - Ética e Direitos Humanos</h3>
+                  <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-3 py-1 rounded-full border border-slate-200">Dissertativa</span>
+              </div>
+              <p className="mb-4 text-justify text-slate-700 leading-relaxed p-3 bg-slate-50 rounded border border-slate-100">
+                <strong>Enunciado:</strong> Analise uma situação hipotética onde um oficial superior ordena uma ação que viola manifestamente os Direitos Humanos. Com base no Regulamento Disciplinar e no Código Penal Militar, qual deve ser a conduta do subordinado? Justifique.
+              </p>
+              <div className="relative">
+                <textarea 
+                    className="w-full h-40 p-4 border border-slate-300 rounded-md focus:ring-2 focus:ring-slate-200 focus:border-slate-500 transition-all resize-none bg-white text-slate-800"
+                    placeholder="Digite sua resposta aqui..."
+                    value={answers.q15}
+                    onChange={(e) => setAnswers({...answers, q15: e.target.value})}
+                    spellCheck={true}
+                />
+                <div className="absolute bottom-4 right-4 text-xs text-gray-400 bg-white px-2 py-1 rounded border shadow-sm">
+                    {answers.q15.length} chars
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pb-10 pt-4 border-t border-slate-200">
+              <button 
+                onClick={() => handleSubmit('submitted')}
+                className="bg-green-700 hover:bg-green-800 text-white font-bold py-4 px-12 rounded-lg shadow-lg flex items-center gap-3 transform transition hover:-translate-y-1"
+              >
+                <CheckCircle className="h-6 w-6" />
+                FINALIZAR E ENVIAR PROVA
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TELA 3: RESULTADO / BLOQUEIO */}
+        {view === 'result' && (
+          <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-2xl overflow-hidden animate-fade-in">
+            <div className={`p-8 text-center ${examStatus === 'disqualified' ? 'bg-red-700' : 'bg-slate-800'} text-white relative overflow-hidden`}>
+                <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                
+              {examStatus === 'disqualified' ? (
+                <AlertOctagon className="h-24 w-24 mx-auto mb-4 text-red-200 relative z-10" />
+              ) : (
+                <Shield className="h-24 w-24 mx-auto mb-4 text-slate-300 relative z-10" />
+              )}
+              <h2 className="text-4xl font-bold relative z-10 tracking-tight">
+                {examStatus === 'submitted' ? 'PROVA RECEBIDA' : 
+                 examStatus === 'timeout' ? 'TEMPO ESGOTADO' : 
+                 'DESCLASSIFICADO'}
+              </h2>
+              <p className="mt-2 opacity-80 relative z-10 font-mono">Protocolo: {Math.random().toString(36).substr(2, 12).toUpperCase()}</p>
+            </div>
+
+            <div className="p-8 space-y-8">
+              
+              {/* Dados do Candidato no Resultado */}
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                 <h4 className="text-sm font-bold text-slate-500 uppercase border-b border-slate-200 pb-2 mb-3">Dados do Oficial Avaliado</h4>
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                        <span className="block text-gray-500 text-xs">Nome no Game</span>
+                        <span className="font-bold text-slate-800">{userData.gameName}</span>
+                    </div>
+                    <div>
+                        <span className="block text-gray-500 text-xs">Registro (RD)</span>
+                        <span className="font-bold text-slate-800">{userData.rd}</span>
+                    </div>
+                    <div>
+                        <span className="block text-gray-500 text-xs">Discord</span>
+                        <span className="font-bold text-slate-800">{userData.discord}</span>
+                    </div>
+                    <div>
+                        <span className="block text-gray-500 text-xs">Telefone</span>
+                        <span className="font-bold text-slate-800">{userData.phone}</span>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Status das Infrações */}
+              <div className="border rounded-lg overflow-hidden">
+                <div className="bg-gray-100 px-4 py-2 border-b font-bold text-gray-600 flex justify-between">
+                    <span>Relatório de Integridade</span>
+                    <span className="text-xs bg-gray-200 px-2 py-1 rounded">LOG SYSTEM v2.1</span>
+                </div>
+                <div className="p-4 bg-white">
+                    <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-700">Tentativas de Fraude (Troca de aba/Colar):</span>
+                    <span className={`font-mono font-bold text-2xl ${infractions > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {infractions}
+                    </span>
+                    </div>
+                    {infractions > 0 ? (
+                        <div className="bg-red-50 border border-red-100 text-red-600 text-xs p-2 rounded">
+                            <strong>ATENÇÃO:</strong> Infrações detectadas. Este registro é permanente e auditável.
+                        </div>
+                    ) : (
+                        <div className="bg-green-50 border border-green-100 text-green-700 text-xs p-2 rounded flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3"/> Conduta íntegra registrada.
+                        </div>
+                    )}
+                </div>
+              </div>
+
+              {/* Visualização das Respostas */}
+              <div className="mt-8">
+                <h4 className="font-bold text-sm text-gray-500 uppercase mb-4 tracking-wide border-b pb-2">Cópia das Respostas Enviadas</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  {questionsMC.map((q, i) => (
+                    <div key={q.id} className="p-3 bg-gray-50 rounded border border-gray-200 text-sm">
+                      <div className="font-bold text-slate-700 mb-1">Questão {i+1}</div>
+                      <div className="text-slate-600 italic truncate" title={answers[q.id]}>
+                        {answers[q.id] || "[Sem resposta]"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 bg-gray-50 rounded border border-gray-200">
+                    <strong className="block text-sm font-bold text-slate-700 mb-2">Questão 14 (Dissertativa)</strong>
+                    <p className="text-sm text-slate-600 text-justify leading-relaxed italic line-clamp-3">"{answers.q14 || "[Em branco]"}"</p>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded border border-gray-200">
+                    <strong className="block text-sm font-bold text-slate-700 mb-2">Questão 15 (Dissertativa)</strong>
+                    <p className="text-sm text-slate-600 text-justify leading-relaxed italic line-clamp-3">"{answers.q15 || "[Em branco]"}"</p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            <div className="bg-slate-50 p-4 text-center text-xs text-slate-400 border-t">
+              Sistema de Gestão de Provas © 2025 PMESP - Divisão de Tecnologia
+            </div>
+          </div>
+        )}
+
+      </main>
+    </div>
+  );
+}
